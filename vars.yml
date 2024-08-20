@@ -1,0 +1,14 @@
+stages:
+- Test
+Testbsf:
+  stage: test
+  trigger:
+    branch: dev
+  variables:
+    BUILD_NF: bsf
+    CSAR_DEPLOYMENT: "true"
+    BSF_RELEASE_TAG: 23.4.1
+    INCLUDE_INTERNAL_ATS_FEATURES: "false"
+    POLICY_MODE: pcf
+    REPORT: "false"
+
