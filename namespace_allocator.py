@@ -130,8 +130,6 @@ class NamespaceAllocator:
                     print(f"Total CPU requests: {total_cpu_requests} cores")
                 else:
                     print("Failed to fetch total CPU requests.")
-                print ("Exit for test")
-                sys.exit(1)
 
                 assigned_status = get_assigned_status(
                     cursor, kwargs['release_tag'], kwargs['ats_release_tag'], kwargs['is_csar'], kwargs['is_asm'],
