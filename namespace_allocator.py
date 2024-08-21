@@ -1,10 +1,12 @@
 import re
+import sys
 import yaml
 import os
 import config
 from mysql.connector import Error
 from helpers import priority_check, determine_policy_mode, get_assigned_status, find_and_lock_available_namespace, update_status_and_lock, update_namespace_in_env, delete_namespace_from_status, \
     update_namespace_status
+from prom_helper import fetch_total_cpu_requests_with_validation
 from db_connection import DatabaseConnection
 
 
@@ -120,6 +122,17 @@ class NamespaceAllocator:
     def allocate_namespace(self, **kwargs):
         try:
             with self.db_connection.get_cursor() as cursor:
+
+                # Fetch and validate total CPU requests
+                total_cpu_requests = fetch_total_cpu_requests_with_validation(cursor)
+
+                if total_cpu_requests is not None:
+                    print(f"Total CPU requests: {total_cpu_requests} cores")
+                else:
+                    print("Failed to fetch total CPU requests.")
+                print ("Exit for test")
+                sys.exit(1)
+
                 assigned_status = get_assigned_status(
                     cursor, kwargs['release_tag'], kwargs['ats_release_tag'], kwargs['is_csar'], kwargs['is_asm'],
                     kwargs['is_tgz'], kwargs['is_internal_ats'], kwargs['is_occ'], kwargs['is_pcf'], kwargs['is_converged'],

@@ -2,6 +2,10 @@ import re
 import config
 import os
 from mysql.connector import Error
+import requests
+import mysql.connector
+from requests.exceptions import RequestException, ConnectionError, HTTPError, Timeout
+
 
 
 def priority_check(official_build, release_tag, upg_rollback):

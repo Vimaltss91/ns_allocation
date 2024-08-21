@@ -2,6 +2,7 @@ import mysql.connector
 from mysql.connector import Error
 import config
 
+
 class DatabaseConnection:
     def __init__(self):
         self.connection = None
