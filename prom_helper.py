@@ -6,8 +6,7 @@ def get_prometheus_url_from_db(cursor):
         # Use a cursor that returns results as a dictionary
         cursor.execute("SELECT url FROM prometheus WHERE namespace = %s LIMIT 1", ('occne-infra',))
         result = cursor.fetchone()
-        print ("result values is ", result)
-        print ("type is result is" ,type(result))
+
         # Check if the result is not None and fetch the first element from the tuple (the 'url')
         if result and result[0]:
             print(f"Retrieved Prometheus URL from the database: {result[0]}")
