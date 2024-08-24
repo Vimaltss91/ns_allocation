@@ -18,11 +18,14 @@ def main():
 
     if args.action == 'insert_or_update':
         parameters = allocator.extract_args(args.source, args.file)
+        # print (" Paramters are ", parameters)
         allocator.insert_or_update_status(**parameters)
 
     # Placeholder for other actions like 'allocate' and 'delete'
     elif args.action == 'allocate_namespace':
+
         parameters = allocator.extract_args(args.source, args.file)
+        # print(" Paramters are ", parameters)
         allocator.allocate_namespace(**parameters)
 
     elif args.action == 'delete':

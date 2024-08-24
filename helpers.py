@@ -7,7 +7,6 @@ import mysql.connector
 from requests.exceptions import RequestException, ConnectionError, HTTPError, Timeout
 
 
-
 def priority_check(official_build, release_tag, upg_rollback):
     if official_build == 'YES':
         if upg_rollback == 'YES':
@@ -33,18 +32,17 @@ def determine_policy_mode(variables):
 
 
 # Allocate namespace helper Section Start
-def get_assigned_status(cursor, release_tag, ats_release_tag, is_csar, is_asm, is_tgz, is_internal_ats,
-                        is_occ, is_pcf, is_converged, upg_rollback, nf_type):
+def get_assigned_status(cursor, nf_type, release_tag, ats_release_tag, is_csar, is_asm, is_tgz, is_internal_ats,
+                        is_occ, is_pcf, is_converged, upg_rollback, official_build, custom_message):
+
     cursor.execute("""
-        SELECT namespace, status FROM namespace_status 
-        WHERE release_tag = %s AND ats_release_tag = %s
-          AND is_csar = %s AND is_asm = %s 
-          AND is_tgz = %s AND is_internal_ats = %s 
-          AND is_occ = %s AND is_pcf = %s 
-          AND is_converged = %s AND upg_rollback = %s 
-          AND nf_type = %s
-    """, (release_tag, ats_release_tag, is_csar, is_asm, is_tgz, is_internal_ats, is_occ, is_pcf, is_converged,
-          upg_rollback, nf_type))
+                SELECT s_no, status, namespace, priority FROM namespace_status
+                WHERE nf_type = %s AND release_tag = %s AND ats_release_tag = %s AND is_csar = %s
+                AND is_asm = %s AND is_tgz = %s AND is_internal_ats = %s AND is_occ = %s
+                AND is_pcf = %s AND is_converged = %s AND upg_rollback = %s 
+                AND official_build = %s AND custom_message = %s
+    """, (nf_type, release_tag, ats_release_tag, is_csar, is_asm, is_tgz, is_internal_ats, is_occ, is_pcf, is_converged,
+          upg_rollback, official_build, custom_message))
     return cursor.fetchone()
 
 
@@ -79,19 +77,18 @@ def get_namespace_prefix(nf_type):
         return None
 
 
-def update_status_and_lock(connection, cursor, release_tag, ats_release_tag, is_csar, is_asm, is_tgz, is_internal_ats,
-                           is_occ, is_pcf, is_converged, upg_rollback, nf_type, namespace_name):
+def update_status_and_lock(connection, cursor, namespace_name, nf_type, release_tag, ats_release_tag, is_csar, is_asm, is_tgz, is_internal_ats,
+                           is_occ, is_pcf, is_converged, upg_rollback, official_build, custom_message):
+
     cursor.execute("""
         UPDATE namespace_status
         SET namespace = %s, status = 'ASSIGNED', allocation_lock = 'NO'
-        WHERE release_tag = %s AND ats_release_tag = %s
-          AND is_csar = %s AND is_asm = %s 
-          AND is_tgz = %s AND is_internal_ats = %s 
-          AND is_occ = %s AND is_pcf = %s 
-          AND is_converged = %s AND upg_rollback = %s
-          AND nf_type = %s
-    """, (namespace_name, release_tag, ats_release_tag, is_csar, is_asm, is_tgz, is_internal_ats, is_occ, is_pcf,
-          is_converged, upg_rollback, nf_type))
+                WHERE nf_type = %s AND release_tag = %s AND ats_release_tag = %s AND is_csar = %s
+                AND is_asm = %s AND is_tgz = %s AND is_internal_ats = %s AND is_occ = %s
+                AND is_pcf = %s AND is_converged = %s AND upg_rollback = %s 
+                AND official_build = %s AND custom_message = %s
+    """, (namespace_name, nf_type, release_tag, ats_release_tag, is_csar, is_asm, is_tgz, is_internal_ats, is_occ, is_pcf, is_converged,
+          upg_rollback, official_build, custom_message))
     cursor.execute("UPDATE namespace SET status = 'In-Use', allocation_lock = 'NO' WHERE namespace = %s",
                    (namespace_name,))
     connection.commit()  # Use the connection object to commit

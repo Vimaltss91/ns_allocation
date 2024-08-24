@@ -1,5 +1,7 @@
 import requests
 from mysql.connector import Error
+import time
+from helpers import priority_check, determine_policy_mode, get_assigned_status
 
 def get_prometheus_url_from_db(cursor):
     try:
@@ -56,18 +58,63 @@ def fetch_total_cpu_requests(prometheus_url, timeout=10):
         print(f"Error fetching data from Prometheus: {e}")
         return None
 
+# def fetch_total_cpu_requests_with_validation(cursor):
+#     # Step 1: Try to retrieve Prometheus URL from the database
+#     prometheus_url = get_prometheus_url_from_db(cursor)
+#
+#     # Step 2: Check if the retrieved URL is reachable
+#     # if prometheus_url and check_prometheus_url_reachable(prometheus_url):
+#     #     print("Using Prometheus URL from the database.")
+#     # else:
+#     #     print("Discovering Prometheus URL dynamically.")
+#     #     # Add logic here to discover the URL if needed
+#     #     return None
+#
+#     # Step 5: Fetch total CPU requests from Prometheus
+#     total_cpu_requests = fetch_total_cpu_requests(prometheus_url)
+#     return total_cpu_requests
+
 def fetch_total_cpu_requests_with_validation(cursor):
-    # Step 1: Try to retrieve Prometheus URL from the database
     prometheus_url = get_prometheus_url_from_db(cursor)
 
-    # Step 2: Check if the retrieved URL is reachable
     # if prometheus_url and check_prometheus_url_reachable(prometheus_url):
     #     print("Using Prometheus URL from the database.")
     # else:
-    #     print("Discovering Prometheus URL dynamically.")
-    #     # Add logic here to discover the URL if needed
+    #     print("Failed to retrieve or reach Prometheus URL.")
     #     return None
 
-    # Step 5: Fetch total CPU requests from Prometheus
-    total_cpu_requests = fetch_total_cpu_requests(prometheus_url)
-    return total_cpu_requests
+    while True:
+        #total_cpu_requests = fetch_total_cpu_requests(prometheus_url)
+
+        user_input = input("Please enter a number: ")
+        total_cpu_requests = int(user_input)
+
+        #total_cpu_requests = 2100
+        if total_cpu_requests is None:
+            print("Failed to fetch total CPU requests.")
+            return None
+
+        if total_cpu_requests > 2100:
+            print("Total CPU requests exceeded 2100 cores. Waiting for 10 minutes before rechecking...")
+            print ("waiting for 2 seconds")
+            time.sleep(2)  # Wait for 10 minutes
+        elif total_cpu_requests > 1600:
+            query = """
+                SELECT SUM(cpu_estimate) 
+                FROM namespace_status 
+                WHERE status = 'ASSIGNED' 
+                AND (ats_status != 'scale_down' OR ats_status IS NULL);
+            """
+            cursor.execute(query)
+            sum_estimate_cpu = cursor.fetchone()[0] or 0
+
+            print(f"Sum of estimated CPU from the database: {sum_estimate_cpu}")
+
+            if total_cpu_requests + sum_estimate_cpu > 2100:
+                print("Combined CPU requests exceed 2100 cores. Waiting for 10 minutes before rechecking...")
+                print ("waiting for 2 seconds")
+                time.sleep(2)  # Wait for 10 minutes
+            else:
+                return total_cpu_requests
+        else:
+            return total_cpu_requests

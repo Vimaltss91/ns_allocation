@@ -43,12 +43,18 @@ class NamespaceAllocator:
 
         is_pcf, is_converged, is_occ = ('NO', 'NO', 'NO') if build_nf == 'bsf' else determine_policy_mode(variables)
 
-        ats_release_tag = variables.get('ATS_RELEASE_TAG', 'null')
+        cpu_estimate = "90" if build_nf == 'policy' else "50"
+
+        ats_release_tag = variables.get('ATS_RELEASE_TAG', '')
         official_build = 'YES' if variables.get('REPORT', 'false').lower() == 'true' else 'NO'
         priority = priority_check(official_build, release_tag, upg_rollback)
 
         use_external_docker_registry = variables.get('USE_EXTERNAL_DOCKER_REGISTRY', '').strip().lower()
         is_tgz = 'YES' if use_external_docker_registry == 'false' else 'NO'
+
+        pipeline_owner = os.getenv('GITLAB_USER_LOGIN')
+
+        custom_message = variables.get('CUSTOM_NOTIFICATION_MESSAGE')
 
         return {
             'nf_type': build_nf,
@@ -63,7 +69,10 @@ class NamespaceAllocator:
             'is_converged': is_converged,
             'upg_rollback': upg_rollback,
             'official_build': official_build,
-            'priority': priority
+            'priority': priority,
+            'owner': pipeline_owner,
+            'custom_message': custom_message,
+            'cpu_estimate': cpu_estimate
         }
 
     def insert_or_update_status(self, **kwargs):
@@ -71,19 +80,13 @@ class NamespaceAllocator:
         try:
             cursor.execute("""
                 SELECT s_no, status, namespace FROM namespace_status
-                WHERE release_tag = %s
-                AND ats_release_tag = %s
-                AND is_csar = %s
-                AND is_asm = %s
-                AND is_tgz = %s
-                AND is_internal_ats = %s
-                AND is_occ = %s
-                AND is_pcf = %s
-                AND is_converged = %s
-                AND upg_rollback = %s
-            """, (kwargs['release_tag'], kwargs['ats_release_tag'], kwargs['is_csar'], kwargs['is_asm'],
+                WHERE nf_type = %s AND release_tag = %s AND ats_release_tag = %s AND is_csar = %s
+                AND is_asm = %s AND is_tgz = %s AND is_internal_ats = %s AND is_occ = %s
+                AND is_pcf = %s AND is_converged = %s AND upg_rollback = %s 
+                AND official_build = %s AND custom_message = %s
+            """, (kwargs['nf_type'], kwargs['release_tag'], kwargs['ats_release_tag'], kwargs['is_csar'], kwargs['is_asm'],
                   kwargs['is_tgz'], kwargs['is_internal_ats'], kwargs['is_occ'], kwargs['is_pcf'],
-                  kwargs['is_converged'], kwargs['upg_rollback']))
+                  kwargs['is_converged'], kwargs['upg_rollback'], kwargs['official_build'], kwargs['custom_message']))
 
             existing_row = cursor.fetchone()
 
@@ -102,14 +105,15 @@ class NamespaceAllocator:
                 cursor.execute("""
                     INSERT INTO namespace_status (
                         nf_type, release_tag, ats_release_tag, namespace, is_csar, is_asm, is_tgz, is_internal_ats,
-                        is_occ, is_pcf, is_converged, upg_rollback, official_build, priority, status, allocation_lock
+                        is_occ, is_pcf, is_converged, upg_rollback, official_build, priority, status, allocation_lock, 
+                        owner, custom_message , cpu_estimate
                     ) VALUES (
-                        %s, %s, %s, '', %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, 'YET TO ASSIGN', 'NO'
+                        %s, %s, %s, '', %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, 'YET TO ASSIGN', 'NO', %s, %s, %s
                     )
                 """, (kwargs['nf_type'], kwargs['release_tag'], kwargs['ats_release_tag'], kwargs['is_csar'],
                       kwargs['is_asm'], kwargs['is_tgz'], kwargs['is_internal_ats'], kwargs['is_occ'],
                       kwargs['is_pcf'], kwargs['is_converged'], kwargs['upg_rollback'], kwargs['official_build'],
-                      kwargs['priority']))
+                      kwargs['priority'], kwargs['owner'], kwargs['custom_message'], kwargs['cpu_estimate']))
                 print("Inserted new row into namespace_status.")
 
             self.db_connection.commit()
@@ -126,19 +130,21 @@ class NamespaceAllocator:
                 # Fetch and validate total CPU requests
                 total_cpu_requests = fetch_total_cpu_requests_with_validation(cursor)
 
+                # total_cpu_requests = "2000"
+                #
                 if total_cpu_requests is not None:
                     print(f"Total CPU requests: {total_cpu_requests} cores")
                 else:
                     print("Failed to fetch total CPU requests.")
 
                 assigned_status = get_assigned_status(
-                    cursor, kwargs['release_tag'], kwargs['ats_release_tag'], kwargs['is_csar'], kwargs['is_asm'],
-                    kwargs['is_tgz'], kwargs['is_internal_ats'], kwargs['is_occ'], kwargs['is_pcf'], kwargs['is_converged'],
-                    kwargs['upg_rollback'], kwargs['nf_type']
+                    cursor, kwargs['nf_type'], kwargs['release_tag'], kwargs['ats_release_tag'], kwargs['is_csar'], kwargs['is_asm'],
+                    kwargs['is_tgz'], kwargs['is_internal_ats'], kwargs['is_occ'], kwargs['is_pcf'],
+                    kwargs['is_converged'], kwargs['upg_rollback'], kwargs['official_build'], kwargs['custom_message']
                 )
 
                 if assigned_status and assigned_status[1] == 'ASSIGNED':  # Access by index if tuple is used
-                    print(f"Namespace '{assigned_status[0]}' is already assigned for release_tag '{kwargs['release_tag']}'")
+                    print(f"Namespace '{assigned_status[2]}' is already assigned for release_tag '{kwargs['release_tag']}'")
 
                     # update the namespace in the environment file ## Uncomment this for pipeline
                     # update_namespace_in_env(namespace_name=assigned_status[0])
@@ -151,10 +157,10 @@ class NamespaceAllocator:
                 if namespace_name:
                     update_status_and_lock(
                         self.db_connection.connection,  # Use the connection attribute directly
-                        cursor,
-                        kwargs['release_tag'], kwargs['ats_release_tag'], kwargs['is_csar'], kwargs['is_asm'], kwargs['is_tgz'],
-                        kwargs['is_internal_ats'], kwargs['is_occ'], kwargs['is_pcf'], kwargs['is_converged'], kwargs['upg_rollback'],
-                        kwargs['nf_type'], namespace_name
+                        cursor, namespace_name,
+                        kwargs['nf_type'], kwargs['release_tag'], kwargs['ats_release_tag'], kwargs['is_csar'], kwargs['is_asm'],
+                        kwargs['is_tgz'], kwargs['is_internal_ats'], kwargs['is_occ'], kwargs['is_pcf'],
+                        kwargs['is_converged'], kwargs['upg_rollback'], kwargs['official_build'], kwargs['custom_message']
                     )
 
                     # update_namespace_in_env(namespace_name)

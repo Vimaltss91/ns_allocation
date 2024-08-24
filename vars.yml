@@ -11,4 +11,6 @@ Testbsf:
     INCLUDE_INTERNAL_ATS_FEATURES: "false"
     POLICY_MODE: pcf
     REPORT: "false"
+    ATS_RELEASE_TAG: 25.9.0
+    CUSTOM_NOTIFICATION_MESSAGE: "@rakhi testing 2"
 
