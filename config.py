@@ -20,3 +20,7 @@ ENV_FILE = "bastion_parameters.env"
 
 # Other constants
 DEFAULT_PRIORITY = "Low"
+
+CPU_LIMIT_HIGH = 2100
+CPU_LIMIT_MEDIUM = 1600
+SLEEP_DURATION = 600  # 10 minutes

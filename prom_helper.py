@@ -1,6 +1,9 @@
 import requests
 from mysql.connector import Error
+import logging
 import time
+import config
+from datetime import datetime, timedelta
 from helpers import priority_check, determine_policy_mode, get_assigned_status
 
 def get_prometheus_url_from_db(cursor):
@@ -74,47 +77,175 @@ def fetch_total_cpu_requests(prometheus_url, timeout=10):
 #     total_cpu_requests = fetch_total_cpu_requests(prometheus_url)
 #     return total_cpu_requests
 
-def fetch_total_cpu_requests_with_validation(cursor):
+
+
+
+def fetch_total_cpu_requests_with_validation(cursor, current_build_priority):
+    """
+    Fetches total CPU requests from Prometheus and validates it against certain thresholds.
+
+    Args:
+        cursor: Database cursor to execute SQL queries.
+        current_build_priority: Priority of the current build (Low, Medium, High).
+
+    Returns:
+        int: The total CPU requests if it passes validation, otherwise None.
+    """
     prometheus_url = get_prometheus_url_from_db(cursor)
 
-    # if prometheus_url and check_prometheus_url_reachable(prometheus_url):
-    #     print("Using Prometheus URL from the database.")
-    # else:
-    #     print("Failed to retrieve or reach Prometheus URL.")
-    #     return None
+    # Validate Prometheus URL (Optional Step)
+    if prometheus_url and check_prometheus_url_reachable(prometheus_url):
+        logging.info("Using Prometheus URL from the database.")
+    else:
+        logging.error("Failed to retrieve or reach Prometheus URL.")
+        return None
 
     while True:
-        #total_cpu_requests = fetch_total_cpu_requests(prometheus_url)
+        total_cpu_requests = get_total_cpu_requests_from_user()
 
-        user_input = input("Please enter a number: ")
-        total_cpu_requests = int(user_input)
-
-        #total_cpu_requests = 2100
         if total_cpu_requests is None:
-            print("Failed to fetch total CPU requests.")
+            logging.error("Failed to fetch total CPU requests.")
             return None
 
-        if total_cpu_requests > 2100:
-            print("Total CPU requests exceeded 2100 cores. Waiting for 10 minutes before rechecking...")
-            print ("waiting for 2 seconds")
-            time.sleep(2)  # Wait for 10 minutes
-        elif total_cpu_requests > 1600:
-            query = """
-                SELECT SUM(cpu_estimate) 
-                FROM namespace_status 
-                WHERE status = 'ASSIGNED' 
-                AND (ats_status != 'scale_down' OR ats_status IS NULL);
-            """
-            cursor.execute(query)
-            sum_estimate_cpu = cursor.fetchone()[0] or 0
+        if total_cpu_requests > config.CPU_LIMIT_HIGH:
+            logging.warning(f"Total CPU requests exceeded {config.CPU_LIMIT_HIGH} cores. Waiting for {config.SLEEP_DURATION / 60} minutes before rechecking...")
+            time.sleep(config.SLEEP_DURATION)
+            continue  # Recheck the total CPU requests after the wait
 
-            print(f"Sum of estimated CPU from the database: {sum_estimate_cpu}")
+        elif total_cpu_requests > config.CPU_LIMIT_MEDIUM:
+            sum_estimate_cpu = fetch_sum_estimate_cpu(cursor)
+            priority_condition_check = check_priority_condition(cursor, current_build_priority)
 
-            if total_cpu_requests + sum_estimate_cpu > 2100:
-                print("Combined CPU requests exceed 2100 cores. Waiting for 10 minutes before rechecking...")
-                print ("waiting for 2 seconds")
-                time.sleep(2)  # Wait for 10 minutes
+            if total_cpu_requests + sum_estimate_cpu > config.CPU_LIMIT_HIGH and priority_condition_check:
+                logging.warning(f"Combined CPU requests exceed {config.CPU_LIMIT_HIGH} cores and higher priority jobs exist. Waiting for {config.SLEEP_DURATION / 60} minutes before rechecking...")
+                time.sleep(config.SLEEP_DURATION)
             else:
                 return total_cpu_requests
         else:
             return total_cpu_requests
+
+
+def get_total_cpu_requests_from_user():
+    """Gets total CPU requests from user input or Prometheus."""
+    try:
+        user_input = input("Please enter a number: ")
+        return int(user_input)
+    except ValueError:
+        logging.error("Invalid input. Please enter a valid number.")
+        return None
+
+
+def fetch_sum_estimate_cpu(cursor):
+    """Fetches the sum of estimated CPU from the database."""
+    query = """
+        SELECT SUM(cpu_estimate) 
+        FROM namespace_status 
+        WHERE status = 'ASSIGNED' 
+        AND (ats_status != 'scale_down' OR ats_status IS NULL);
+    """
+    cursor.execute(query)
+    return cursor.fetchone()[0] or 0
+
+
+def check_priority_condition(cursor, current_build_priority):
+    """Checks if higher priority jobs exist in the queue."""
+    priority_mapping = {
+        "Low": ("CRITICAL", "HIGH", "MEDIUM"),
+        "Medium": ("CRITICAL", "HIGH"),
+        "High": ("CRITICAL",)
+    }
+
+    priorities_to_check = priority_mapping.get(current_build_priority, ())
+    if not priorities_to_check:
+        return False
+
+    placeholders = ', '.join(['%s'] * len(priorities_to_check))
+    query = f"""
+        SELECT 1
+        FROM namespace_status
+        WHERE status = 'YET TO ASSIGN'
+        AND priority IN ({placeholders})
+        AND date >= NOW() - INTERVAL 1 HOUR
+        LIMIT 1
+    """
+    cursor.execute(query, priorities_to_check)
+    return cursor.fetchone() is not None
+
+# def fetch_total_cpu_requests_with_validation(cursor, current_build_priority):
+#     prometheus_url = get_prometheus_url_from_db(cursor)
+#
+#     # if prometheus_url and check_prometheus_url_reachable(prometheus_url):
+#     #     print("Using Prometheus URL from the database.")
+#     # else:
+#     #     print("Failed to retrieve or reach Prometheus URL.")
+#     #     return None
+#
+#     while True:
+#         #total_cpu_requests = fetch_total_cpu_requests(prometheus_url)
+#
+#         user_input = input("Please enter a number: ")
+#         total_cpu_requests = int(user_input)
+#
+#         #total_cpu_requests = 2100
+#         if total_cpu_requests is None:
+#             print("Failed to fetch total CPU requests.")
+#             return None
+#
+#         if total_cpu_requests > 2100:
+#             print("Total CPU requests exceeded 2100 cores. Waiting for 10 minutes before rechecking...")
+#             print ("waiting for 2 seconds")
+#             time.sleep(2)  # Wait for 10 minutes
+#
+#         elif total_cpu_requests > 1600:
+#             query = """
+#                 SELECT SUM(cpu_estimate)
+#                 FROM namespace_status
+#                 WHERE status = 'ASSIGNED'
+#                 AND (ats_status != 'scale_down' OR ats_status IS NULL);
+#             """
+#             cursor.execute(query)
+#             sum_estimate_cpu = cursor.fetchone()[0] or 0
+#
+#             print(f"Sum of estimated CPU from the database: {sum_estimate_cpu}")
+#
+#             # Step 2: Determine the priority levels to check
+#             priority_condition_check = False
+#
+#             print("Current Build priority", current_build_priority)
+#             if current_build_priority == "Low":
+#                 priorities_to_check = ("CRITICAL", "HIGH", "MEDIUM")
+#             elif current_build_priority == "Medium":
+#                 priorities_to_check = ("CRITICAL", "HIGH")
+#             elif current_build_priority == "High":
+#                 priorities_to_check = ("CRITICAL",)
+#             else:
+#                 priorities_to_check = ()
+#
+#             print ("Priority to check is", priorities_to_check)
+#
+#             # Step 3: Check if there are higher priority jobs in the queue
+#             if priorities_to_check:
+#                 # Create a string with the appropriate number of placeholders
+#                 placeholders = ', '.join(['%s'] * len(priorities_to_check))
+#                 print ("priority place holder", placeholders)
+#                 query = f"""
+#                     SELECT 1
+#                     FROM namespace_status
+#                     WHERE status = 'YET TO ASSIGN'
+#                     AND priority IN ({placeholders})
+#                     AND date >= NOW() - INTERVAL 1 HOUR
+#                     LIMIT 1
+#                 """
+#                 cursor.execute(query, priorities_to_check)
+#                 priority_condition_check = cursor.fetchone() is not None
+#
+#             print(f"Priority condition check: {priority_condition_check}")
+#
+#             # Step 4: Combine the conditions
+#             if total_cpu_requests + sum_estimate_cpu > 2100 and priority_condition_check:
+#                 print("Combined CPU requests exceed 2100 cores and higher priority jobs exist. Waiting for 10 minutes before rechecking...")
+#                 time.sleep(600)  # Wait for 10 minutes
+#             else:
+#                 return total_cpu_requests
+#         else:
+#             return total_cpu_requests

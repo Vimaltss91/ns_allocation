@@ -127,8 +127,14 @@ class NamespaceAllocator:
         try:
             with self.db_connection.get_cursor() as cursor:
 
+                assigned_status = get_assigned_status(
+                    cursor, kwargs['nf_type'], kwargs['release_tag'], kwargs['ats_release_tag'], kwargs['is_csar'], kwargs['is_asm'],
+                    kwargs['is_tgz'], kwargs['is_internal_ats'], kwargs['is_occ'], kwargs['is_pcf'],
+                    kwargs['is_converged'], kwargs['upg_rollback'], kwargs['official_build'], kwargs['custom_message']
+                )
+
                 # Fetch and validate total CPU requests
-                total_cpu_requests = fetch_total_cpu_requests_with_validation(cursor)
+                total_cpu_requests = fetch_total_cpu_requests_with_validation(cursor, assigned_status[3])
 
                 # total_cpu_requests = "2000"
                 #
@@ -136,12 +142,6 @@ class NamespaceAllocator:
                     print(f"Total CPU requests: {total_cpu_requests} cores")
                 else:
                     print("Failed to fetch total CPU requests.")
-
-                assigned_status = get_assigned_status(
-                    cursor, kwargs['nf_type'], kwargs['release_tag'], kwargs['ats_release_tag'], kwargs['is_csar'], kwargs['is_asm'],
-                    kwargs['is_tgz'], kwargs['is_internal_ats'], kwargs['is_occ'], kwargs['is_pcf'],
-                    kwargs['is_converged'], kwargs['upg_rollback'], kwargs['official_build'], kwargs['custom_message']
-                )
 
                 if assigned_status and assigned_status[1] == 'ASSIGNED':  # Access by index if tuple is used
                     print(f"Namespace '{assigned_status[2]}' is already assigned for release_tag '{kwargs['release_tag']}'")
