@@ -43,7 +43,7 @@ class NamespaceAllocator:
 
         is_pcf, is_converged, is_occ = ('NO', 'NO', 'NO') if build_nf == 'bsf' else determine_policy_mode(variables)
 
-        cpu_estimate = "90" if build_nf == 'policy' else "50"
+        cpu_estimate = config.POLICY_ESTIMATE_CPU if build_nf == 'policy' else config.BSF_ESTIMATE_CPU
 
         ats_release_tag = variables.get('ATS_RELEASE_TAG', '')
         official_build = 'YES' if variables.get('REPORT', 'false').lower() == 'true' else 'NO'
