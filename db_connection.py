@@ -1,5 +1,6 @@
 import mysql.connector
 from mysql.connector import Error
+import logging
 import config
 
 
@@ -16,21 +17,33 @@ class DatabaseConnection:
                 database=config.DB_NAME
             )
             if self.connection.is_connected():
-                print("Connected to the database")
+                logging.info("Connected to the database")
         except Error as e:
-            print(f"Error connecting to MySQL: {e}")
+            logging.error(f"Error connecting to MySQL: {e}")
             raise
 
     def close(self):
         if self.connection and self.connection.is_connected():
             self.connection.close()
-            print("MySQL connection closed")
+            logging.info("MySQL connection closed")
 
     def get_cursor(self):
-        if not self.connection:
+        if not self.connection or not self.connection.is_connected():
             self.connect()
         return self.connection.cursor()
 
     def commit(self):
-        if self.connection:
+        if self.connection and self.connection.is_connected():
             self.connection.commit()
+        else:
+            logging.warning("No active database connection to commit.")
+
+    def __enter__(self):
+        if not self.connection:
+            self.connect()
+        return self
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        self.close()
+
+

@@ -140,7 +140,7 @@ class NamespaceAllocator:
             kwargs['is_pcf'], kwargs['is_converged'], kwargs['upg_rollback'], kwargs['official_build'],
             kwargs['priority'], kwargs['owner'], kwargs['custom_message'], kwargs['cpu_estimate']
         ))
-        logging.info("Inserted new row into namespace_status.")
+        logging.info(f"Added NF '{kwargs['nf_type']}' for release tag '{kwargs['release_tag']}' in database")
 
     def allocate_namespace(self, **kwargs):
         try:
