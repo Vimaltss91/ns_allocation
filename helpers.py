@@ -102,22 +102,22 @@ def lock_namespace(cursor, namespace_name: str):
     logging.info(f"Namespace '{namespace_name}' is now locked.")
 
 
-def update_status_and_lock(connection, cursor, namespace_name: str, nf_type: str, release_tag: str, ats_release_tag: str,
+def update_status_and_lock(connection, cursor, namespace_name: str, pipeline_url: str, nf_type: str, release_tag: str, ats_release_tag: str,
                            is_csar: str, is_asm: str, is_tgz: str, is_internal_ats: str, is_occ: str, is_pcf: str,
-                           is_converged: str, upg_rollback: str, official_build: str, custom_message: str):
+                           is_converged: str, upg_rollback: str, official_build: str, custom_message: str ):
     """
     Updates the namespace status and commits the transaction.
     """
     try:
         cursor.execute("""
             UPDATE namespace_status
-            SET namespace = %s, status = 'ASSIGNED', allocation_lock = 'NO'
+            SET namespace = %s, pipeline = %s , status = 'ASSIGNED', allocation_lock = 'NO'
             WHERE nf_type = %s AND release_tag = %s AND ats_release_tag = %s AND is_csar = %s
             AND is_asm = %s AND is_tgz = %s AND is_internal_ats = %s AND is_occ = %s
             AND is_pcf = %s AND is_converged = %s AND upg_rollback = %s 
             AND official_build = %s AND custom_message = %s
-        """, (namespace_name, nf_type, release_tag, ats_release_tag, is_csar, is_asm, is_tgz, is_internal_ats, is_occ,
-              is_pcf, is_converged, upg_rollback, official_build, custom_message))
+        """, (namespace_name, pipeline_url, nf_type, release_tag, ats_release_tag, is_csar, is_asm, is_tgz, is_internal_ats, is_occ,
+              is_pcf, is_converged, upg_rollback, official_build, custom_message ))
         cursor.execute("UPDATE namespace SET status = 'In-Use', allocation_lock = 'NO' WHERE namespace = %s",
                        (namespace_name,))
         connection.commit()

@@ -154,13 +154,13 @@ def fetch_total_cpu_requests_with_validation(cursor, current_build_priority):
     """
     prometheus_url = get_prometheus_url_from_db(cursor)
 
-    # if not prometheus_url or not check_prometheus_url_reachable(prometheus_url):
-    #     logging.error("Failed to retrieve or reach Prometheus URL.")
-    #     return None
+    if not prometheus_url or not check_prometheus_url_reachable(prometheus_url):
+        logging.error("Failed to retrieve or reach Prometheus URL.")
+        return None
 
     while True:
-        #total_cpu_requests = fetch_total_cpu_requests_from_prometheus(prometheus_url)
-        total_cpu_requests = get_total_cpu_requests_from_user()
+        total_cpu_requests = fetch_total_cpu_requests_from_prometheus(prometheus_url)
+        #total_cpu_requests = get_total_cpu_requests_from_user()
         if total_cpu_requests is None:
             logging.error("Failed to fetch total CPU requests. Exiting validation loop.")
             return None

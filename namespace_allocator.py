@@ -80,7 +80,7 @@ class NamespaceAllocator:
             'official_build': 'YES' if variables.get('REPORT', 'false').lower() == 'true' else 'NO',
             'priority': priority,
             'owner': os.getenv('GITLAB_USER_LOGIN'),
-            'custom_message': variables.get('CUSTOM_NOTIFICATION_MESSAGE'),
+            'custom_message': variables.get('CUSTOM_NOTIFICATION_MESSAGE','NULL'),
             'cpu_estimate': cpu_estimate
         }
 
@@ -155,6 +155,8 @@ class NamespaceAllocator:
                     logging.info(f"Namespace '{assigned_status[2]}' is already assigned for release_tag '{kwargs['release_tag']}'")
                     return assigned_status[2]
 
+                logging.info(f"Assinged status is{assigned_status}")
+
                 total_cpu_requests = fetch_total_cpu_requests_with_validation(cursor, assigned_status[3])
 
                 if total_cpu_requests is not None:
@@ -164,15 +166,16 @@ class NamespaceAllocator:
                     return None
 
                 namespace_name = find_and_lock_available_namespace(cursor, kwargs['nf_type'])
-
+                pipeline_url = os.getenv("CI_PIPELINE_URL")
                 if namespace_name:
                     update_status_and_lock(
                         self.db_connection.connection,  # Use the connection attribute directly
-                        cursor, namespace_name,
+                        cursor, namespace_name,pipeline_url,
                         kwargs['nf_type'], kwargs['release_tag'], kwargs['ats_release_tag'], kwargs['is_csar'], kwargs['is_asm'],
                         kwargs['is_tgz'], kwargs['is_internal_ats'], kwargs['is_occ'], kwargs['is_pcf'],
                         kwargs['is_converged'], kwargs['upg_rollback'], kwargs['official_build'], kwargs['custom_message']
                     )
+                    update_namespace_in_env (namespace_name)
                     return namespace_name
                 else:
                     logging.warning("No available namespaces or they are locked.")
