@@ -1,20 +1,36 @@
 import argparse
 import config
 import logging
+import os  # Import os module to access environment variables
 from namespace_allocator import NamespaceAllocator
 from db_connection import DatabaseConnection
 
 def setup_logging():
     logging.basicConfig(
-        level=logging.INFO,  # Set the logging level to INFO
-        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',  # Define the format of the log messages
+        level=logging.INFO,
+        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
         handlers=[
-            logging.StreamHandler()  # Output logs to the console
+            logging.StreamHandler()
         ]
     )
 
+def check_bastion_ip():
+    bastion_ip = os.getenv("BASTION_IP")
+    oci_bastion_host = os.getenv("OCI_BASTION_HOST")
+
+    if bastion_ip != oci_bastion_host:
+        logging.error("Environment variable mismatch: BASTION_IP and OCI_BASTION_HOST are not the same.")
+        return False
+    logging.info("Environment variable check passed: BASTION_IP and OCI_BASTION_HOST are the same.")
+    return True
+
 def main():
-    setup_logging()  # Set up logging
+    setup_logging()
+
+    # Check if the environment variables BASTION_IP and OCI_BASTION_HOST are the same
+    if not check_bastion_ip():
+        logging.error("Exiting due to environment variable mismatch.")
+        return
 
     parser = argparse.ArgumentParser(description="Manage namespace allocation and status.")
     parser.add_argument('action', choices=config.ACTIONS, help="Action to perform: insert_or_update, allocate, delete")

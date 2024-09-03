@@ -59,6 +59,16 @@ def get_assigned_status(cursor, nf_type: str, release_tag: str, ats_release_tag:
           upg_rollback, official_build, custom_message))
     return cursor.fetchone()
 
+def get_existing_namespace(cursor, namespace: str):
+    """
+    Fetches assigned status for the given namespace.
+    """
+    cursor.execute("""
+        SELECT s_no, status, namespace, priority FROM namespace_status
+        WHERE namespace = %s 
+    """, (namespace,))  # Wrap the parameter in a tuple
+    return cursor.fetchone()
+
 
 def find_and_lock_available_namespace(cursor, nf_type: str) -> str:
     """
