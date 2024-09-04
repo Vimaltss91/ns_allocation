@@ -24,6 +24,7 @@ class NamespaceAllocator:
         self.db_connection = db_connection
 
     def extract_args(self, source_type: str, yaml_file: str = None) -> dict:
+        """Extract the variables from env or yaml file."""
         if source_type not in ['yaml', 'env']:
             raise ValueError("Invalid source_type. Use 'yaml' or 'env'.")
 
