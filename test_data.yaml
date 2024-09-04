@@ -7,10 +7,10 @@ Testbsf:
   variables:
     BUILD_NF: bsf
     CSAR_DEPLOYMENT: "true"
-    BSF_RELEASE_TAG: 23.4.1-ocngf-new6
+    BSF_RELEASE_TAG: 23.4.1-ocngf-new5
     INCLUDE_INTERNAL_ATS_FEATURES: "false"
     REPORT: "false"
-    ATS_RELEASE_TAG: 23.4.1-ocngf-new6
+    ATS_RELEASE_TAG: 23.4.1-ocngf-new5
     CUSTOM_NOTIFICATION_MESSAGE: "@rakhi testing 3"
-    NAMESPACE: "o-devops-bsf10"
+    NAMESPACE: "o-devops-123"
 

@@ -1,8 +1,9 @@
 import re
 import logging
-import config
 import os
 from mysql.connector import Error
+import config
+
 import requests
 from requests.exceptions import RequestException, ConnectionError, HTTPError, Timeout
 
@@ -197,3 +198,22 @@ def update_namespace_status(cursor, namespace_name: str, status: str = 'Availabl
     logging.info(f"Namespace '{namespace_name}' status updated to '{status}' with lock '{lock}'.")
 
 # Delete namespace helper Section Ends
+
+def check_bastion_ip():
+    bastion_ip = os.getenv("BASTION_IP")
+    oci_bastion_host = os.getenv("OCI_BASTION_HOST")
+
+    if bastion_ip != oci_bastion_host:
+        logging.error("Environment variable mismatch: BASTION_IP and OCI_BASTION_HOST are not the same.")
+        return False
+    logging.info("Environment variable check passed: BASTION_IP and OCI_BASTION_HOST are the same.")
+    return True
+
+def setup_logging():
+    logging.basicConfig(
+        level=logging.INFO,
+        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+        handlers=[
+            logging.StreamHandler()
+        ]
+    )

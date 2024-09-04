@@ -1,11 +1,7 @@
 import os
-import yaml
 import logging
 from mysql.connector import Error
-import config
 from helpers import (
-    priority_check,
-    determine_policy_mode,
     get_assigned_status,
     find_and_lock_available_namespace,
     update_status_and_lock,
@@ -14,13 +10,14 @@ from helpers import (
     delete_namespace_from_status,
     update_namespace_status
 )
+from pars_helper import (
+    _extract_from_yaml,
+    _extract_from_env,
+    _parse_variables
+)
 from prom_helper import fetch_total_cpu_requests_with_validation
 from db_connection import DatabaseConnection
 
-# Constants for reusability
-YES = 'YES'
-NO = 'NO'
-DEFAULT_CUSTOM_MESSAGE = 'NULL'
 
 class NamespaceAllocator:
     def __init__(self, db_connection: DatabaseConnection):
@@ -33,83 +30,12 @@ class NamespaceAllocator:
         if source_type == 'yaml':
             if not yaml_file:
                 raise ValueError("YAML file must be provided when source_type is 'yaml'")
-            variables = self._extract_from_yaml(yaml_file)
+            variables = _extract_from_yaml(yaml_file)
         else:
-            variables = self._extract_from_env()
+            variables = _extract_from_env()
 
-        return self._parse_variables(variables)
+        return _parse_variables(variables)
 
-    def _extract_from_yaml(self, yaml_file: str) -> dict:
-        try:
-            with open(yaml_file, 'r') as file:
-                data = yaml.safe_load(file)
-
-            first_section = next((key for key in data if key != 'stages'), None)
-            if not first_section:
-                raise ValueError("No valid section found after 'stages' in the YAML file.")
-
-            return data.get(first_section, {}).get('variables', {})
-        except FileNotFoundError:
-            logging.error(f"YAML file '{yaml_file}' not found.")
-            raise
-        except yaml.YAMLError as e:
-            logging.error(f"Error parsing YAML file: {e}")
-            raise
-
-    def _extract_from_env(self) -> dict:
-        return {key: os.getenv(key, '') for key in config.ENV_VARS}
-
-    def _parse_variables(self, variables: dict) -> dict:
-        build_nf = variables.get('BUILD_NF', '').lower()
-        release_tag = self._get_release_tag(build_nf, variables)
-        upg_rollback = YES if self._any_upg_features_true(variables) else NO
-
-        is_pcf, is_converged, is_occ = self._determine_policy_mode(build_nf, variables)
-
-        cpu_estimate = config.POLICY_ESTIMATE_CPU if build_nf == 'policy' else config.BSF_ESTIMATE_CPU
-
-        priority = priority_check(
-            YES if variables.get('REPORT', 'false').lower() == 'true' else NO,
-            release_tag,
-            upg_rollback
-        )
-        namespace = variables.get('NAMESPACE', '')
-
-        return {
-            'nf_type': build_nf,
-            'release_tag': release_tag,
-            'ats_release_tag': variables.get('ATS_RELEASE_TAG', ''),
-            'is_csar': self._get_boolean_as_yes_no(variables, 'CSAR_DEPLOYMENT'),
-            'is_asm': self._get_boolean_as_yes_no(variables, 'ENABLE_ISTIO_INJECTION'),
-            'is_tgz': self._get_boolean_as_yes_no(variables, 'USE_EXTERNAL_DOCKER_REGISTRY', invert=True),
-            'is_internal_ats': self._get_boolean_as_yes_no(variables, 'INCLUDE_INTERNAL_ATS_FEATURES'),
-            'is_occ': is_occ,
-            'is_pcf': is_pcf,
-            'is_converged': is_converged,
-            'upg_rollback': upg_rollback,
-            'official_build': YES if variables.get('REPORT', 'false').lower() == 'true' else NO,
-            'priority': priority,
-            'owner': os.getenv('GITLAB_USER_LOGIN'),
-            'custom_message': variables.get('CUSTOM_NOTIFICATION_MESSAGE', DEFAULT_CUSTOM_MESSAGE),
-            'cpu_estimate': cpu_estimate,
-            'namespace': namespace
-        }
-
-    def _get_release_tag(self, build_nf: str, variables: dict) -> str:
-        return variables.get('POLICY_RELEASE_TAG', '') if build_nf == 'policy' else variables.get('BSF_RELEASE_TAG', '')
-
-    def _any_upg_features_true(self, variables: dict) -> bool:
-        return any(variables.get(f'UPG_FEATURE_{i}', '').lower() == 'true' for i in range(1, 5))
-
-    def _determine_policy_mode(self, build_nf: str, variables: dict) -> tuple:
-        if build_nf == 'bsf':
-            return NO, NO, NO
-        else:
-            return determine_policy_mode(variables)
-
-    def _get_boolean_as_yes_no(self, variables: dict, key: str, invert: bool = False) -> str:
-        value = variables.get(key, '').lower() == 'true'
-        return NO if value and invert else YES if value else NO
     def insert_or_update_status(self, **kwargs) -> None:
         """Inserts or updates the namespace status in the database."""
         with self.db_connection.get_cursor() as cursor:
@@ -139,7 +65,7 @@ class NamespaceAllocator:
         """Handles the insertion or update of dynamic namespaces."""
         existing_row = self._get_existing_status(cursor, kwargs)
 
-        if existing_row:
+        if existing_row :
             s_no, status, namespace = existing_row
             if status == 'ASSIGNED':
                 logging.info(f"Namespace already allocated. Row s_no {s_no} has status 'ASSIGNED'.")
@@ -219,6 +145,7 @@ class NamespaceAllocator:
         logging.info(f"Added NF '{kwargs['nf_type']}' for release tag '{kwargs['release_tag']}' in database.")
 
     def allocate_namespace(self, **kwargs):
+        print("Starting allocate_namespace")
         try:
             with self.db_connection.get_cursor() as cursor:
                 assigned_status = get_assigned_status(
@@ -227,19 +154,13 @@ class NamespaceAllocator:
                     kwargs['is_converged'], kwargs['upg_rollback'], kwargs['official_build'], kwargs['custom_message']
                 )
 
-                print("assigned_status is", assigned_status)
-                print("assigned_status[1] is", assigned_status[1])
-                print("assigned_status[2] is", assigned_status[2])
-
                 if assigned_status and assigned_status[1] == 'ASSIGNED':  # Access by index if tuple is used
                     logging.info(f"Namespace '{assigned_status[2]}' is already assigned for release_tag '{kwargs['release_tag']}'")
                     return assigned_status[3]
 
-                # logging.info(f"Assinged status is{assigned_status}")
-
+                logging.info(f"Assinged status is{assigned_status}")
                 # total_cpu_requests = fetch_total_cpu_requests_with_validation(cursor, assigned_status[3])
                 total_cpu_requests = 400
-                print("total cpu is ", total_cpu_requests)
 
                 if total_cpu_requests is not None:
                     logging.info(f"Total CPU requests: {total_cpu_requests} cores")
