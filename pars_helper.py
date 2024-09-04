@@ -4,18 +4,19 @@ import logging
 import config
 from helpers import determine_policy_mode, priority_check
 
+
 # Constants for reusability
 YES = 'YES'
 NO = 'NO'
 DEFAULT_CUSTOM_MESSAGE = 'NULL'
 
 
-def _parse_variables( variables: dict) -> dict:
+def parse_variables( variables: dict) -> dict:
     build_nf = variables.get('BUILD_NF', '').lower()
     release_tag = _get_release_tag(build_nf, variables)
     upg_rollback = YES if _any_upg_features_true(variables) else NO
 
-    is_pcf, is_converged, is_occ = _determine_policy_mode(build_nf, variables)
+    is_pcf, is_converged, is_occ, is_pcrf = _determine_policy_mode(build_nf, variables)
 
     cpu_estimate = config.POLICY_ESTIMATE_CPU if build_nf == 'policy' else config.BSF_ESTIMATE_CPU
 
@@ -36,8 +37,10 @@ def _parse_variables( variables: dict) -> dict:
         'is_internal_ats': _get_boolean_as_yes_no(variables, 'INCLUDE_INTERNAL_ATS_FEATURES'),
         'is_occ': is_occ,
         'is_pcf': is_pcf,
+        'is_pcrf': is_pcrf,
         'is_converged': is_converged,
         'upg_rollback': upg_rollback,
+        'tls_version': variables.get('TLS_VERSION', NO),
         'official_build': YES if variables.get('REPORT', 'false').lower() == 'true' else NO,
         'priority': priority,
         'owner': os.getenv('GITLAB_USER_LOGIN'),
@@ -57,7 +60,7 @@ def _any_upg_features_true(variables: dict) -> bool:
 
 def _determine_policy_mode(build_nf: str, variables: dict) -> tuple:
     if build_nf == 'bsf':
-        return NO, NO, NO
+        return NO, NO, NO, NO
     else:
         return determine_policy_mode(variables)
 
@@ -67,7 +70,7 @@ def _get_boolean_as_yes_no(variables: dict, key: str, invert: bool = False) -> s
     return NO if value and invert else YES if value else NO
 
 
-def _extract_from_yaml(yaml_file: str) -> dict:
+def extract_from_yaml(yaml_file: str) -> dict:
     try:
         with open(yaml_file, 'r') as file:
             data = yaml.safe_load(file)
@@ -85,6 +88,6 @@ def _extract_from_yaml(yaml_file: str) -> dict:
         raise
 
 
-def _extract_from_env() -> dict:
+def extract_from_env() -> dict:
     return {key: os.getenv(key, '') for key in config.ENV_VARS}
 

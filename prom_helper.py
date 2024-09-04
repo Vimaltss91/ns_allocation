@@ -4,7 +4,8 @@ import logging
 import time
 import config
 from datetime import datetime, timedelta
-from helpers import priority_check, determine_policy_mode, get_assigned_status
+from helpers import priority_check, determine_policy_mode
+from sql_helpers import get_existing_status
 
 
 def get_prometheus_url_from_db(cursor, namespace="occne-infra"):
