@@ -10,9 +10,9 @@ from helpers import check_bastion_ip, setup_logging
 def main():
     setup_logging()
     # Check if the environment variables BASTION_IP and OCI_BASTION_HOST are the same
-    if not check_bastion_ip():
-        logging.error("Exiting due to environment variable mismatch.")
-        return
+    # if not check_bastion_ip():
+    #     logging.error("Exiting due to environment variable mismatch.")
+    #     return
 
     parser = argparse.ArgumentParser(description="Manage namespace allocation and status.")
     parser.add_argument('action', choices=config.ACTIONS, help="Action to perform: insert_or_update, allocate, delete")
@@ -28,16 +28,26 @@ def main():
     if args.action == 'insert_or_update':
         parameters = allocator.extract_args(args.source, args.file)
         logging.info("Parameters are %s", parameters)
+        if not check_bastion_ip(parameters):
+            logging.error("Exiting due to environment variable mismatch.")
+            return
         allocator.insert_or_update_status(**parameters)
 
     elif args.action == 'allocate_namespace':
         parameters = allocator.extract_args(args.source, args.file)
         logging.info("Parameters are %s", parameters)
+        if not check_bastion_ip(parameters):
+            logging.error("Exiting due to environment variable mismatch.")
+            return
         allocator.allocate_namespace(**parameters)
 
     elif args.action == 'delete':
         if not args.namespace:
             logging.error("Error: --namespace is required when action is 'delete'")
+            return
+        parameters = allocator.extract_args(args.source, args.file)
+        if not check_bastion_ip(parameters):
+            logging.error("Exiting due to environment variable mismatch.")
             return
         allocator.delete_namespace(args.namespace)
 

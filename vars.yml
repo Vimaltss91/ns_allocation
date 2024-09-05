@@ -15,4 +15,5 @@ Testbsf:
     POLICY_MODE: occnp
     TLS_VERSION: 1.3
     NAMESPACE: o-devops-pol3
+    BASTION_IP: localhost
 

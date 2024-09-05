@@ -86,8 +86,8 @@ def read_lines(file_path: str) -> list:
         return file.readlines()
 
 
-def check_bastion_ip():
-    bastion_ip = os.getenv("BASTION_IP")
+def check_bastion_ip(parameters):
+    bastion_ip = parameters.get('bastion_ip')
     oci_bastion_host = os.getenv("OCI_BASTION_HOST")
 
     if bastion_ip != oci_bastion_host:

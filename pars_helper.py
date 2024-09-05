@@ -26,6 +26,7 @@ def parse_variables( variables: dict) -> dict:
         upg_rollback
     )
     namespace = variables.get('NAMESPACE', '')
+    bastion_ip = variables.get('BASTION_IP', '')
 
     return {
         'nf_type': build_nf,
@@ -46,7 +47,8 @@ def parse_variables( variables: dict) -> dict:
         'owner': os.getenv('GITLAB_USER_LOGIN'),
         'custom_message': variables.get('CUSTOM_NOTIFICATION_MESSAGE', DEFAULT_CUSTOM_MESSAGE),
         'cpu_estimate': cpu_estimate,
-        'namespace': namespace
+        'namespace': namespace,
+        'bastion_ip': bastion_ip
     }
 
 
