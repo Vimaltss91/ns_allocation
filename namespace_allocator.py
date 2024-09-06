@@ -1,7 +1,7 @@
 import os
 import logging
 from mysql.connector import Error
-from typing import Optional, Dict
+from typing import Optional, Dict, Any
 import time
 import config
 
@@ -14,7 +14,8 @@ from sql_helpers import (
     get_existing_status,
     update_namespace_pool_status,
     update_existing_status,
-    insert_new_status
+    insert_new_status,
+    get_upgrade_status
 
 )
 from pars_helper import extract_from_yaml, extract_from_env, parse_variables
@@ -45,7 +46,23 @@ class NamespaceAllocator:
 
 
 
-    def extract_args(self, source_type: str, yaml_file: Optional[str] = None) -> Dict:
+    # def extract_args(self, source_type: str, yaml_file: Optional[str] = None) -> Dict:
+    #     """
+    #     Extracts the variables from the environment or YAML file.
+    #     """
+    #     if source_type not in ['yaml', 'env']:
+    #         raise ValueError("Invalid source_type. Use 'yaml' or 'env'.")
+    #
+    #     if source_type == 'yaml':
+    #         if not yaml_file:
+    #             raise ValueError("YAML file must be provided when source_type is 'yaml'")
+    #         variables = extract_from_yaml(yaml_file)
+    #     else:
+    #         variables = extract_from_env()
+    #
+    #     return parse_variables(variables)
+
+    def extract_args(self, source_type: str, yaml_file: Optional[str] = None) -> Dict[str, Dict[str, Any]]:
         """
         Extracts the variables from the environment or YAML file.
         """
@@ -55,11 +72,22 @@ class NamespaceAllocator:
         if source_type == 'yaml':
             if not yaml_file:
                 raise ValueError("YAML file must be provided when source_type is 'yaml'")
-            variables = extract_from_yaml(yaml_file)
+            stage_variables = extract_from_yaml(yaml_file)
+
+            # Ensure that the extracted variables are dictionaries
+            parsed_stage_variables = {}
+            for stage, vars in stage_variables.items():
+                if isinstance(vars, dict):  # Ensure vars is a dictionary
+                    parsed_stage_variables[stage] = parse_variables(vars)
+                else:
+                    logging.warning(f"Variables for stage '{stage}' are not in dictionary format.")
+
+            return parsed_stage_variables
+
         else:
             variables = extract_from_env()
-
-        return parse_variables(variables)
+            parsed_variables = parse_variables(variables)
+            return {'default': parsed_variables}  # Return as a single-stage dict
 
     def insert_or_update_status(self, **kwargs) -> None:
         """
@@ -115,6 +143,8 @@ class NamespaceAllocator:
         """
         try:
             with self.db_connection.get_cursor() as cursor:
+
+                upgrade_status = get_upgrade_status(cursor, kwargs)
                 assigned_status = get_existing_status(cursor, kwargs)
 
                 if assigned_status and assigned_status[1] == 'ASSIGNED':  # Access by index if tuple is used

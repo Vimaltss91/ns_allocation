@@ -25,21 +25,34 @@ def main():
     db_connection = DatabaseConnection()
     allocator = NamespaceAllocator(db_connection)
 
+    # Extract and parse the variables from YAML or environment
+    stage_variables = allocator.extract_args(args.source, args.file)
+    #logging.info("Parsed stage variables: %s", stage_variables)
+
+    # Process each stage based on the action
     if args.action == 'insert_or_update':
-        parameters = allocator.extract_args(args.source, args.file)
-        logging.info("Parameters are %s", parameters)
-        if not check_bastion_ip(parameters):
-            logging.error("Exiting due to environment variable mismatch.")
-            return
-        allocator.insert_or_update_status(**parameters)
+        for stage, variables in stage_variables.items():
+            logging.info(f"Processing stage '{stage}' with variables: {variables}")
+            if not check_bastion_ip(variables):
+                logging.error("Exiting due to environment variable mismatch for stage '%s'.", stage)
+                continue  # Skip this stage if there is an issue
+            allocator.insert_or_update_status(**variables)
+            # Call insert_or_update_status for each stage with its variables
+
 
     elif args.action == 'allocate_namespace':
-        parameters = allocator.extract_args(args.source, args.file)
-        logging.info("Parameters are %s", parameters)
-        if not check_bastion_ip(parameters):
-            logging.error("Exiting due to environment variable mismatch.")
-            return
-        allocator.allocate_namespace(**parameters)
+        # parameters = allocator.extract_args(args.source, args.file)
+        # logging.info("Parameters are %s", parameters)
+        # if not check_bastion_ip(parameters):
+        #     logging.error("Exiting due to environment variable mismatch.")
+        #     return
+        # allocator.allocate_namespace(**parameters)
+        for stage, variables in stage_variables.items():
+            logging.info(f"Processing stage '{stage}' with variables: {variables}")
+            if not check_bastion_ip(variables):
+                logging.error("Exiting due to environment variable mismatch for stage '%s'.", stage)
+                continue  # Skip this stage if there is an issue
+            allocator.allocate_namespace(**variables)
 
     elif args.action == 'delete':
         if not args.namespace:
