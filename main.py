@@ -15,7 +15,7 @@ def main():
     #     return
 
     parser = argparse.ArgumentParser(description="Manage namespace allocation and status.")
-    parser.add_argument('action', choices=config.ACTIONS, help="Action to perform: insert_or_update, allocate, delete")
+    parser.add_argument('action', choices=config.ACTIONS,  help="Action to perform: insert_or_update, allocate, delete")
     parser.add_argument('--source', choices=['yaml', 'env'], required=False, help="Source of parameters: yaml or env")
     parser.add_argument('--file', help="YAML file containing parameters (required if source is yaml)")
     parser.add_argument('--namespace', help="Namespace to delete (required if action is delete)")
@@ -27,11 +27,15 @@ def main():
 
     if args.action == 'insert_or_update':
         parameters = allocator.extract_args(args.source, args.file)
+
         logging.info("Parameters are %s", parameters)
         if not check_bastion_ip(parameters):
             logging.error("Exiting due to environment variable mismatch.")
             return
         allocator.insert_or_update_status(**parameters)
+
+    # elif args.action == 'allocate_namespace':
+    #     parameters = allocator.extract_args(args.source, args.file)
 
     elif args.action == 'allocate_namespace':
         parameters = allocator.extract_args(args.source, args.file)
@@ -55,4 +59,5 @@ def main():
 
 
 if __name__ == "__main__":
+
     main()

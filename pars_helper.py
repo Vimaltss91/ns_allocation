@@ -27,6 +27,7 @@ def parse_variables( variables: dict) -> dict:
     )
     namespace = variables.get('NAMESPACE', '')
     bastion_ip = variables.get('BASTION_IP', '')
+    upg_phase = variables.get('UPG_PHASE', '')
 
     return {
         'nf_type': build_nf,
@@ -48,7 +49,10 @@ def parse_variables( variables: dict) -> dict:
         'custom_message': variables.get('CUSTOM_NOTIFICATION_MESSAGE', DEFAULT_CUSTOM_MESSAGE),
         'cpu_estimate': cpu_estimate,
         'namespace': namespace,
-        'bastion_ip': bastion_ip
+        'bastion_ip': bastion_ip,
+        'upg_phase': upg_phase,
+        'play_id': variables.get('CI_JOB_ID', '')
+        #'play_id': os.getenv('CI_JOB_ID')
     }
 
 

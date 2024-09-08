@@ -14,9 +14,11 @@ from sql_helpers import (
     get_existing_status,
     update_namespace_pool_status,
     update_existing_status,
-    insert_new_status
+    insert_new_status,
+    get_upgrade_status
 
 )
+from helpers import clear_unread_results
 from pars_helper import extract_from_yaml, extract_from_env, parse_variables
 
 from prom_helper import fetch_total_cpu_requests_with_validation
@@ -30,6 +32,7 @@ class NamespaceAllocationError(Exception):
     """Custom exception for namespace allocation errors."""
     pass
 
+
 class NamespaceAllocator:
     def __init__(self, db_connection: DatabaseConnection):
         self.db_connection = db_connection
@@ -42,8 +45,6 @@ class NamespaceAllocator:
         if not value:
             logging.warning(f"Environment variable '{var_name}' is not set.")
         return value
-
-
 
     def extract_args(self, source_type: str, yaml_file: Optional[str] = None) -> Dict:
         """
@@ -76,7 +77,6 @@ class NamespaceAllocator:
         except Error as e:
             logging.error(f"Error during status insertion or update: {e}")
             raise NamespaceAllocationError("Failed to insert or update namespace status.")
-
 
     def _handle_hardcoded_namespace(self, cursor, kwargs: Dict) -> None:
         """
@@ -115,14 +115,32 @@ class NamespaceAllocator:
         """
         try:
             with self.db_connection.get_cursor() as cursor:
-                assigned_status = get_existing_status(cursor, kwargs)
+                # clear_unread_results(cursor)
+                if kwargs['play_id']:
+                    upg_status = get_upgrade_status(cursor, kwargs)
 
+                    upg_rollback = upg_status[1]
+                    namespace_value = upg_status[2]
+
+                    # Check if upg_rollback is 'YES'
+                    if upg_rollback == 'YES':
+                        if namespace_value:
+                            # Call the hardcoded namespace update function and exit
+                            kwargs['namespace'] = namespace_value
+                            kwargs['status'] = 'ASSIGNED'
+                            update_namespace_status_hardcoded_ns(cursor, kwargs)
+                            self.db_connection.commit()
+                            logging.info(f"Namespace {namespace_value} is already set for release tag {kwargs['release_tag']}")
+                            return None
+
+                assigned_status = get_existing_status(cursor, kwargs)
+                print("Continue assignment status")
                 if assigned_status and assigned_status[1] == 'ASSIGNED':  # Access by index if tuple is used
                     logging.info(f"Namespace '{assigned_status[2]}' is already assigned for release_tag '{kwargs['release_tag']}'")
                     return assigned_status[3]
 
                 # total_cpu_requests = fetch_total_cpu_requests_with_validation(cursor, assigned_status[3])
-                #total_cpu_requests = self._fetch_total_cpu_requests(cursor, assigned_status[3])
+                # total_cpu_requests = self._fetch_total_cpu_requests(cursor, assigned_status[3])
                 total_cpu_requests = 400
 
                 if total_cpu_requests is not None:
@@ -133,7 +151,7 @@ class NamespaceAllocator:
 
                 namespace_name = find_and_lock_available_namespace(cursor, kwargs['nf_type'])
 
-                #pipeline_url = self._get_env_variable("CI_PIPELINE_URL")
+                # pipeline_url = self._get_env_variable("CI_PIPELINE_URL")
                 pipeline_url = "https://example.com"
                 if namespace_name:
                     update_status_and_lock(self.db_connection.connection, cursor, namespace_name, pipeline_url, kwargs)
@@ -158,7 +176,6 @@ class NamespaceAllocator:
         except Exception as e:
             logging.error(f"Error fetching total CPU requests: {e}")
             return None
-
 
     def delete_namespace(self, namespace_name: str) -> None:
         """
