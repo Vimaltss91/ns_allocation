@@ -1,77 +1,16 @@
 stages:
-- install_1
-- upgrade_2
-- rollback_3
-Install Bsf 24.2.0 1:
-  stage: install_1
+- Test
+Testbsf:
+  stage: test
   trigger:
-    strategy: depend
-    project: ocpm5G/one-click-integration-test
     branch: dev
   variables:
-    UPG_PHASE: INSTALL
-    SCENARIO_INCLUDE_TAGS: post_rollback
-    BSF_RELEASE_TAG: 24.2.0
-    ATS_RELEASE_TAG: 24.3.0-rc.1
     BUILD_NF: bsf
+    CSAR_DEPLOYMENT: "true"
+    BSF_RELEASE_TAG: 23.4.1-ocngf-new13
+    INCLUDE_INTERNAL_ATS_FEATURES: "false"
+    REPORT: "false"
+    ATS_RELEASE_TAG: 23.4.1-ocngf-new9
     BASTION_IP: localhost
-    BASTION_USER: opc
-    TEST_BSF_SUITE: BSF
-    DELETE_NAMESPACE: 'true'
-    UPG_FEATURE_1: 'true'
-    SYNC_ATS_RUN: 'true'
-    INCLUDE_INTERNAL_ATS_FEATURES: 'true'
-    PLAY_BRANCH_NAME: dev
-    UPSTREAM_PROJECT_NAME: one-click-play
-    REPORT: 'true'
-    UPG_STAGE_ORDER: '1'
-    CI_JOB_ID: 2230
-    CUSTOM_NOTIFICATION_MESSAGE: "testing"
-    NAMESPACE: "auto"
-Upgrade Bsf to 24.3.0-rc.1 2:
-  stage: upgrade_2
-  trigger:
-    strategy: depend
-    project: ocpm5G/one-click-integration-test
-    branch: dev
-  variables:
-    UPG_PHASE: ROLLBACK
-    SCENARIO_INCLUDE_TAGS: post_rollback
-    BSF_RELEASE_TAG: 24.2.0
-    ATS_RELEASE_TAG: 24.3.0-rc.1
-    BUILD_NF: bsf
-    BASTION_IP: localhost
-    BASTION_USER: opc
-    TEST_BSF_SUITE: BSF
-    DELETE_NAMESPACE: 'true'
-    UPG_FEATURE_1: 'true'
-    SYNC_ATS_RUN: 'true'
-    INCLUDE_INTERNAL_ATS_FEATURES: 'true'
-    PLAY_BRANCH_NAME: dev
-    UPSTREAM_PROJECT_NAME: one-click-play
-    REPORT: 'true'
-    UPG_STAGE_ORDER: '2'
-Rollback Bsf to 24.2.0 3:
-  stage: rollback_3
-  trigger:
-    strategy: depend
-    project: ocpm5G/one-click-integration-test
-    branch: dev
-  variables:
-    UPG_PHASE: INSTALL
-    SCENARIO_INCLUDE_TAGS: post_rollback
-    BSF_RELEASE_TAG: 24.2.0
-    ATS_RELEASE_TAG: 24.3.0-rc.1
-    BUILD_NF: bsf
-    BASTION_IP: localhost
-    BASTION_USER: opc
-    TEST_BSF_SUITE: BSF
-    DELETE_NAMESPACE: 'true'
-    UPG_FEATURE_1: 'true'
-    SYNC_ATS_RUN: 'true'
-    INCLUDE_INTERNAL_ATS_FEATURES: 'true'
-    PLAY_BRANCH_NAME: dev
-    UPSTREAM_PROJECT_NAME: one-click-play
-    REPORT: 'true'
-    UPG_STAGE_ORDER: '3'
-    IS_LAST_UPG_PHASE: 'true'
+    CUSTOM_NOTIFICATION_MESSAGE: "@vsanthar FYI"
+

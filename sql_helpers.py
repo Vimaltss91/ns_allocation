@@ -32,16 +32,55 @@ def update_namespace_pool_status(cursor, namespace_name: str, status: str, lock:
     logging.info(f"Namespace '{namespace_name}' status updated to '{status}' with lock '{lock}'.")
 
 
-def update_existing_status(cursor, s_no: int) -> None:
+def update_existing_status(cursor, s_no: int, status: str) -> None:
     """Updates the status of an existing namespace record."""
     query = """
         UPDATE namespace_status
-        SET status = 'YET TO ASSIGN', allocation_lock = 'NO', date = CURRENT_TIMESTAMP
+        SET status = %s, allocation_lock = 'NO', date = CURRENT_TIMESTAMP
         WHERE s_no = %s
     """
-    params = (s_no,)
+    params = (status, s_no)
     execute_query(cursor, query, params)
-    logging.info(f"Updated row with s_no {s_no} to 'YET TO ASSIGN' and unlocked.")
+    logging.info(f"Updated row with s_no {s_no} to '{status}' and unlocked.")
+
+
+def check_same_priority_queue(cursor, s_no, priority, current_build_queue_date):
+    """
+    Checks if there are any queued jobs with the same priority and an earlier QueueDate.
+    Returns True if there are such jobs, indicating that the current job should wait.
+    """
+    query = """
+        SELECT * 
+        FROM namespace_status 
+        WHERE priority = %s
+        AND status = 'QUEUE' 
+        AND QueueDate < %s
+        AND s_no != %s;
+    """
+    try:
+        # Execute the query with provided priority and current build's queue date
+        cursor.execute(query, (priority, current_build_queue_date, s_no))
+        result = cursor.fetchall()
+        if result:
+            logging.info(f"Found {len(result)} '{priority}' priority job(s) queued earlier. Waiting...")
+            return True
+        return False
+    except Exception as e:
+        logging.error(f"Error checking '{priority}' priority queue jobs: {e}")
+        return False
+
+
+
+def update_queue_status(cursor, s_no: int, status: str) -> None:
+    """Updates the status of an existing namespace record."""
+    query = """
+        UPDATE namespace_status
+        SET status = %s, allocation_lock = 'NO', queue_date = CURRENT_TIMESTAMP
+        WHERE s_no = %s
+    """
+    params = (status, s_no)
+    execute_query(cursor, query, params)
+    logging.info(f"Updated row with s_no {s_no} to '{status}' and unlocked.")
 
 
 def insert_new_status(cursor, kwargs: dict) -> None:
@@ -66,6 +105,20 @@ def insert_new_status(cursor, kwargs: dict) -> None:
     logging.info(f"Added NF '{kwargs['nf_type']}' for release tag '{kwargs['release_tag']}' in database.")
 
 
+def update_pipeline_url(cursor,pipeline: str,s_no: int):
+    """UPDATE PIPELINE URL"""
+    query = """
+        UPDATE namespace_status set pipeline = %s WHERE s_no = %s;
+    """
+    try:
+        params = (pipeline, s_no)
+        execute_query(cursor, query, params)
+
+    except Error as e:
+        logging.error(f"Database error while fetching priority: {e}")
+        return 0
+
+
 def get_upgrade_status(cursor, kwargs: dict) -> tuple:
     """Retrieves the existing status for a namespace from the database."""
     query = """
@@ -88,7 +141,7 @@ def get_upgrade_status(cursor, kwargs: dict) -> tuple:
 def get_existing_status(cursor, kwargs: dict) -> tuple:
     """Retrieves the existing status for a namespace from the database."""
     query = """
-        SELECT s_no, status, namespace, priority FROM namespace_status
+        SELECT s_no, status, namespace, priority, official_build, release_tag, ats_release_tag  FROM namespace_status
         WHERE nf_type = %s AND release_tag = %s AND ats_release_tag = %s AND is_csar = %s
         AND is_asm = %s AND is_tgz = %s AND is_internal_ats = %s AND is_occ = %s
         AND is_pcf = %s AND is_converged = %s AND is_pcrf = %s AND upg_phase = %s AND play_id = %s 
@@ -160,14 +213,14 @@ def update_namespace_status_hardcoded_ns(cursor, kwargs: dict) -> None:
         SET nf_type = %s, release_tag = %s, ats_release_tag = %s, is_csar = %s, is_asm = %s, is_tgz = %s, 
             is_internal_ats = %s, is_occ = %s, is_pcf = %s, is_converged = %s, is_pcrf = %s, upg_phase = %s, play_id = %s,
              tls_version = %s, upg_rollback = %s, official_build = %s, priority = %s, owner = %s, custom_message = %s, cpu_estimate = %s, 
-            status = 'ASSIGNED', allocation_lock = 'NO', date = CURRENT_TIMESTAMP
+            status = %s , allocation_lock = 'NO', date = CURRENT_TIMESTAMP
         WHERE namespace = %s
     """
     params = (
         kwargs['nf_type'], kwargs['release_tag'], kwargs['ats_release_tag'], kwargs['is_csar'],
         kwargs['is_asm'], kwargs['is_tgz'], kwargs['is_internal_ats'], kwargs['is_occ'],
         kwargs['is_pcf'], kwargs['is_converged'], kwargs['is_pcrf'], kwargs['upg_phase'], kwargs['play_id'], kwargs['tls_version'], kwargs['upg_rollback'],
-        kwargs['official_build'], kwargs['priority'], kwargs['owner'], kwargs['custom_message'], kwargs['cpu_estimate'], kwargs['namespace']
+        kwargs['official_build'], kwargs['priority'], kwargs['owner'], kwargs['custom_message'], kwargs['cpu_estimate'],kwargs['status'], kwargs['namespace']
     )
 
     try:
@@ -179,6 +232,35 @@ def update_namespace_status_hardcoded_ns(cursor, kwargs: dict) -> None:
     logging.info(f"Updated namespace '{kwargs['namespace']}' to 'ASSIGNED'.")
 
 
+# def find_and_lock_available_namespace(cursor, nf_type: str) -> Optional[str]:
+#     """
+#     Tries to find and lock an available namespace for allocation, with retries and waiting.
+#     """
+#     namespace_prefix = get_namespace_prefix(nf_type)
+#     if not namespace_prefix:
+#         return None
+#
+#     while True:
+#         query = """
+#             SELECT namespace FROM namespace
+#             WHERE status = 'Available' AND allocation_lock = 'NO'
+#               AND namespace LIKE %s
+#             LIMIT 1
+#         """
+#         params = (f'{namespace_prefix}%',)
+#         logging.info(f"params is {params} ")
+#         execute_query(cursor, query, params)
+#         available_namespace = cursor.fetchone()
+#         logging.info(f"Available namespace is {available_namespace}")
+#
+#         if available_namespace:
+#             namespace_name = available_namespace[0]
+#             lock_namespace(cursor, namespace_name)
+#             return namespace_name
+#         else:
+#             logging.info(f"No available namespaces. Retrying in {config.SLEEP_DURATION} minutes...")
+#             time.sleep(config.SLEEP_DURATION)
+
 def find_and_lock_available_namespace(cursor, nf_type: str) -> Optional[str]:
     """
     Tries to find and lock an available namespace for allocation, with retries and waiting.
@@ -188,23 +270,49 @@ def find_and_lock_available_namespace(cursor, nf_type: str) -> Optional[str]:
         return None
 
     while True:
-        query = """
-            SELECT namespace FROM namespace 
-            WHERE status = 'Available' AND allocation_lock = 'NO' 
-              AND namespace LIKE %s 
-            LIMIT 1
-        """
-        params = (f'{namespace_prefix}%',)
-        execute_query(cursor, query, params)
-        available_namespace = cursor.fetchone()
+        try:
+            cursor.execute("START TRANSACTION;")  # Start transaction
 
-        if available_namespace:
-            namespace_name = available_namespace[0]
-            lock_namespace(cursor, namespace_name)
-            return namespace_name
-        else:
-            logging.info(f"No available namespaces. Retrying in {config.SLEEP_DURATION} minutes...")
-            time.sleep(config.SLEEP_DURATION)
+            query = """
+                SELECT namespace FROM namespace
+                WHERE status = 'Available' AND allocation_lock = 'NO'
+                  AND namespace LIKE %s
+                LIMIT 1
+            """
+            params = (f'{namespace_prefix}%',)
+            execute_query(cursor, query, params)
+            available_namespace = cursor.fetchone()
+
+            if available_namespace:
+                namespace_name = available_namespace[0]
+
+                # Lock the namespace
+                lock_query = """
+                    UPDATE namespace
+                    SET allocation_lock = 'YES'
+                    WHERE namespace = %s
+                      AND allocation_lock = 'NO'
+                """
+                lock_params = (namespace_name,)
+                cursor.execute(lock_query, lock_params)
+
+                if cursor.rowcount == 1:  # Lock was successful
+                    cursor.execute("COMMIT;")  # Commit the transaction
+                    return namespace_name
+                else:
+                    # Lock failed, meaning it was locked by another process
+                    cursor.execute("ROLLBACK;")  # Rollback the transaction
+                    continue  # Retry
+
+            else:
+                cursor.execute("ROLLBACK;")  # Rollback the transaction
+                logging.info(f"No available namespaces. Retrying in {config.SLEEP_DURATION} minutes...")
+                time.sleep(config.SLEEP_DURATION)
+
+        except Exception as e:
+            cursor.execute("ROLLBACK;")  # Rollback on error
+            logging.error(f"Error while finding and locking namespace: {e}")
+            time.sleep(config.SLEEP_DURATION)  # Sleep before retrying
 
 
 def lock_namespace(cursor, namespace_name: str):

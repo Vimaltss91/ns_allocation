@@ -25,9 +25,18 @@ def parse_variables( variables: dict) -> dict:
         release_tag,
         upg_rollback
     )
-    namespace = variables.get('NAMESPACE', '')
+    #namespace = variables.get('NAMESPACE', '')
     bastion_ip = variables.get('BASTION_IP', '')
     upg_phase = variables.get('UPG_PHASE', '')
+    tls_version = variables.get('TLS_VERSION', '')
+    custom_message = os.getenv('CUSTOM_NOTIFICATION_MESSAGE', '')
+    if os.getenv('CI_PROJECT_TITLE') == 'one-click-play':
+        play_id = variables.get('PLAY_ID', '') if upg_rollback == YES else ''
+        namespace = variables.get('NAMESPACE', '')
+    else:
+        play_id = os.getenv('PLAY_ID', '') if upg_rollback == YES else ''
+        namespace = os.getenv('NAMESPACE', '')
+
 
     return {
         'nf_type': build_nf,
@@ -42,17 +51,16 @@ def parse_variables( variables: dict) -> dict:
         'is_pcrf': is_pcrf,
         'is_converged': is_converged,
         'upg_rollback': upg_rollback,
-        'tls_version': variables.get('TLS_VERSION', NO),
+        'tls_version': tls_version,
         'official_build': YES if variables.get('REPORT', 'false').lower() == 'true' else NO,
         'priority': priority,
         'owner': os.getenv('GITLAB_USER_LOGIN'),
-        'custom_message': variables.get('CUSTOM_NOTIFICATION_MESSAGE', DEFAULT_CUSTOM_MESSAGE),
+        'custom_message': custom_message,
         'cpu_estimate': cpu_estimate,
         'namespace': namespace,
         'bastion_ip': bastion_ip,
         'upg_phase': upg_phase,
-        'play_id': variables.get('CI_JOB_ID', '')
-        #'play_id': os.getenv('CI_JOB_ID')
+        'play_id': play_id
     }
 
 

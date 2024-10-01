@@ -34,9 +34,6 @@ def main():
             return
         allocator.insert_or_update_status(**parameters)
 
-    # elif args.action == 'allocate_namespace':
-    #     parameters = allocator.extract_args(args.source, args.file)
-
     elif args.action == 'allocate_namespace':
         parameters = allocator.extract_args(args.source, args.file)
         logging.info("Parameters are %s", parameters)

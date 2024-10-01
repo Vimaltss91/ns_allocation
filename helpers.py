@@ -3,6 +3,7 @@ import logging
 import os
 from mysql.connector import Error
 import config
+import json
 
 import requests
 from requests.exceptions import RequestException, ConnectionError, HTTPError, Timeout
