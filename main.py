@@ -52,6 +52,10 @@ def main():
             return
         allocator.delete_namespace(args.namespace)
 
+    elif args.action == 'monitor':
+        logging.info("Inside monitor job")
+        allocator.monitor_jobs()
+
     db_connection.close()
 
 

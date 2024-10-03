@@ -113,3 +113,41 @@ def setup_logging():
             logging.StreamHandler()
         ]
     )
+
+
+def generate_sql_params(play_id, job_name):
+    # Default values for the parameters
+    is_csar = "NO"
+    is_asm = "NO"
+    is_tgz = "NO"
+    upg_rollback = "NO"
+
+    # Set nf_type based on job_name
+    if "policy" in job_name.lower():
+        nf_type = "policy"
+    elif "bsf" in job_name.lower():
+        nf_type = "bsf"
+    else:
+        nf_type = ""
+    # Check for CSAR
+    if "csar" in job_name.lower():
+        is_csar = "YES"
+
+    # Check for ASM
+    if "asm" in job_name.lower():
+        is_asm = "YES"
+
+    # Check for tgz
+    if "tgz" in job_name.lower():
+        is_tgz = "YES"
+
+    # Check for UPGRADE AND ROLLBACK
+    if "upgrade and rollback" in job_name.lower():
+        upg_rollback = "YES"
+
+    # Generate the SQL query
+    sql_query_condition = f"""
+       play_pipeline_id = "{play_id}" AND nf_type = "{nf_type}"  AND is_csar = "{is_csar}" AND is_asm = "{is_asm}" AND is_tgz = "{is_tgz}" AND upg_rollback = "{upg_rollback}";
+    """
+
+    return sql_query_condition

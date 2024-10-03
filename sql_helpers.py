@@ -70,7 +70,6 @@ def check_same_priority_queue(cursor, s_no, priority, current_build_queue_date):
         return False
 
 
-
 def update_queue_status(cursor, s_no: int, status: str) -> None:
     """Updates the status of an existing namespace record."""
     query = """
@@ -81,6 +80,24 @@ def update_queue_status(cursor, s_no: int, status: str) -> None:
     params = (status, s_no)
     execute_query(cursor, query, params)
     logging.info(f"Updated row with s_no {s_no} to '{status}' and unlocked.")
+
+
+def update_build_status(cursor, build_status: str, conditions: str) -> None:
+    """
+    Updates the build_status of a namespace record based on given conditions.
+
+    :param cursor: Database cursor object
+    :param build_status: The new build_status value
+    :param conditions: The WHERE clause conditions as a string (already generated)
+    """
+    query = f"""
+        UPDATE namespace_status
+        SET build_status = %s
+        WHERE {conditions}
+    """
+    params = (build_status,)
+    execute_query(cursor, query, params)
+    # logging.info(f"Updated build_status to '{build_status}' for records matching conditions: {conditions}")
 
 
 def insert_new_status(cursor, kwargs: dict) -> None:
@@ -105,7 +122,7 @@ def insert_new_status(cursor, kwargs: dict) -> None:
     logging.info(f"Added NF '{kwargs['nf_type']}' for release tag '{kwargs['release_tag']}' in database.")
 
 
-def update_pipeline_url(cursor,pipeline: str,s_no: int):
+def update_pipeline_url(cursor, pipeline: str, s_no: int):
     """UPDATE PIPELINE URL"""
     query = """
         UPDATE namespace_status set pipeline = %s WHERE s_no = %s;
@@ -206,6 +223,7 @@ def get_existing_namespace_hardcoded_ns(cursor, namespace: str):
     execute_query(cursor, query, (namespace,))
     return cursor.fetchone()
 
+
 def update_namespace_status_hardcoded_ns(cursor, kwargs: dict) -> None:
     """Updates the status of an existing namespace."""
     query = """
@@ -220,7 +238,7 @@ def update_namespace_status_hardcoded_ns(cursor, kwargs: dict) -> None:
         kwargs['nf_type'], kwargs['release_tag'], kwargs['ats_release_tag'], kwargs['is_csar'],
         kwargs['is_asm'], kwargs['is_tgz'], kwargs['is_internal_ats'], kwargs['is_occ'],
         kwargs['is_pcf'], kwargs['is_converged'], kwargs['is_pcrf'], kwargs['upg_phase'], kwargs['play_id'], kwargs['tls_version'], kwargs['upg_rollback'],
-        kwargs['official_build'], kwargs['priority'], kwargs['owner'], kwargs['custom_message'], kwargs['cpu_estimate'],kwargs['status'], kwargs['namespace']
+        kwargs['official_build'], kwargs['priority'], kwargs['owner'], kwargs['custom_message'], kwargs['cpu_estimate'], kwargs['status'], kwargs['namespace']
     )
 
     try:

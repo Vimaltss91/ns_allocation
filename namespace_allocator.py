@@ -4,6 +4,7 @@ from mysql.connector import Error
 from typing import Optional, Dict
 import config
 from enum import Enum
+from monitor_jobs import  monitor_jobs
 
 from sql_helpers import (
     find_and_lock_available_namespace,
@@ -310,3 +311,15 @@ class NamespaceAllocator:
         except Error as e:
             logging.error(f"Error during namespace deletion: {e}")
             raise NamespaceAllocationError("Failed to delete namespace.")
+
+    def monitor_jobs(self):
+        """
+        Deletes the namespace from the database and marks it as available.
+        """
+        try:
+            with self.db_connection.get_cursor() as cursor:
+                monitor_jobs(cursor)
+                self.db_connection.commit()
+        except Error as e:
+            logging.error(f"Error during status insertion or update: {e}")
+            raise NamespaceAllocationError("Failed to insert or update namespace status.")
